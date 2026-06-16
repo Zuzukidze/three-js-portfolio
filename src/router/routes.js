@@ -15,6 +15,20 @@ export default [
 		meta: { title: 'Components Preview' },
 	},
 	{
+		path: '/project-template',
+		name: 'projectTemplate',
+		// Lazy-loaded route
+		component: () => import('@/views/ProjectTemplateView.vue'),
+		meta: { title: 'Project Template' },
+	},
+	{
+		path: '/apartment',
+		name: 'apartment',
+		// Lazy-loaded route
+		component: () => import('@/views/ApartmentView.vue'),
+		meta: { title: 'Apartment' },
+	},
+	{
 		// 404 fallback
 		path: '/:pathMatch(.*)*',
 		name: 'notFound',

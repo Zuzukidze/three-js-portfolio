@@ -50,6 +50,21 @@ const githubRepo = "https://github.com/martinille/starter-template-vite-vue3-sas
 		<ThemeController class="mb-10"/>
 	</div>
 
+	<!-- Projects -->
+	<div class="bg-base-300 text-base-content mb-10">
+		<div class="container-center py-10">
+			<h2 class="text-2xl font-bold mb-6">Projects</h2>
+			<div class="flex flex-wrap gap-4 justify-center">
+				<router-link :to="{ name: 'projectTemplate' }" class="btn btn-primary">
+					Project Template
+				</router-link>
+				<router-link :to="{ name: 'apartment' }" class="btn btn-primary">
+					Apartment Demo
+				</router-link>
+			</div>
+		</div>
+	</div>
+
 	<!-- Components Preview -->
 	<div class="bg-base-300 text-base-content mb-10">
 		<div class="container-center py-10">
