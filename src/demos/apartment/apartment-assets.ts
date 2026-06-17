@@ -21,4 +21,9 @@ export const apartmentAssetManifest: AssetManifest = {
             '/models/apartment/building.glb', 
             true
         ),
+    'buildingGroundModel': 
+        assetDefGLTF(
+            '/models/apartment/building_ground.glb', 
+            true
+        ),
 };

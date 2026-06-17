@@ -72,8 +72,11 @@ const initThreeJS = async () => {
 	buildingModel.scene.add(plane);
 	scene.add(buildingModel.scene);
 
-
-
+	const buildingGroundModel = await assetManager.load(assets.buildingGroundModel);
+	buildingGroundModel.scene.scale.set(0.1, 0.1, 0.1);
+	//buildingGroundModel.scene.position.y += 0.5;
+	buildingGroundModel.scene.add(plane);
+	scene.add(buildingGroundModel.scene);
 
 	const floorModel = buildingModel.scene.getObjectByName("Floor");
 	console.log(floorModel);
