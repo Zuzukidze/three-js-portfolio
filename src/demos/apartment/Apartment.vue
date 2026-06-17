@@ -28,7 +28,9 @@ const initThreeJS = async () => {
 	const width = canvasContainer.value.clientWidth;
 	const height = canvasContainer.value.clientHeight;
 	camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-	camera.position.z = 3;
+	camera.position.x = 3;
+	camera.position.y = 3;
+	camera.position.z = -3;
 
 	// Renderer setup
 	renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -47,7 +49,7 @@ const initThreeJS = async () => {
 	const cube = new THREE.Mesh(geometry, material);
 	scene.add(cube);
 
-	const planeGeometry = new THREE.PlaneGeometry(75, 75);
+	const planeGeometry = new THREE.PlaneGeometry(100, 100);
 	const planeMaterial = new THREE.MeshBasicMaterial({ color: 0xdddddd /*color: 0x404040, roughness: 0.8*/ });
 	assetManager.load(apartmentAssetManifest.groundMap).then((groundMapTexture) => {
 		planeMaterial.map = groundMapTexture;
@@ -66,6 +68,7 @@ const initThreeJS = async () => {
 
 	const buildingModel = await assetManager.load(assets.buildingModel);
 	buildingModel.scene.scale.set(0.1, 0.1, 0.1);
+	buildingModel.scene.position.y += 0.5;
 	buildingModel.scene.add(plane);
 	scene.add(buildingModel.scene);
 
@@ -124,19 +127,12 @@ const initThreeJS = async () => {
 	roofModel.position.y = floorCount * 3;
 
 
-
-
-
-
-
-
-
-
-
-
-	scene.backgroundBlurriness = 0.5;
-
-	loadAssets(scene);
+	// Scene background
+	const backgroundTexture = await assetManager.load(assets.skyboxTexture);
+	backgroundTexture.mapping = THREE.EquirectangularReflectionMapping;
+	scene.background = backgroundTexture;
+	scene.environment = backgroundTexture;
+	scene.backgroundBlurriness = 0.75;
 
 	// Handle window resize
 	const handleResize = () => {
@@ -174,21 +170,21 @@ var assets = {
 };
 
 
-
-
-
-
-
-
+assetManager.load(apartmentAssetManifest.groundReflectionMap).then((groundReflectionMapTexture) => {
+	glassMaterial.uniforms.groundMap.value = groundReflectionMapTexture;
+})
 assetManager.load(apartmentAssetManifest.groundMap).then((groundMapTexture) => {
-	glassMaterial.uniforms.groundMap.value = groundMapTexture;
-	console.log('Ground map loaded:', groundMapTexture);
+	glassMaterial.uniforms.groundMapHigh.value = groundMapTexture;
 })
 
 
 const glassMaterial = new THREE.ShaderMaterial({
 		uniforms: {
 			groundMap: {
+				type: 't',
+				value: null,
+			},
+			groundMapHigh: {
 				type: 't',
 				value: null,
 			},
@@ -209,6 +205,7 @@ const glassMaterial = new THREE.ShaderMaterial({
 			vec3 invLightDir = vec3(0.585, 0.728, 0.385);
 			float groundSize = 75.0;
 			uniform sampler2D groundMap;
+			uniform sampler2D groundMapHigh;
 
 
 			void main() {
@@ -233,17 +230,29 @@ const glassMaterial = new THREE.ShaderMaterial({
 
 
 					// probably smoothstep here will be better to make horizon edge in reflections smoother
-					float distance = -(pos.y+0.5) / reflection.y;
-					uv = (reflection.xz * distance + pos.xz) / groundSize;
+					float distance = -(pos.y) / reflection.y;
+					uv = (reflection.xz * distance + pos.xz) / 10.0;
 					vec3 uvc = vec3(uv, 0.0);
 				
 					if (reflection.y < 0.)
 					{
 						reflection = reflection * distance + pos;
-						if (abs(reflection.x) < 3.5 && abs(reflection.z) < 3.5){
+						if (abs(reflection.x) < 5.0 && abs(reflection.z) < 5.0){
 							reflection.z *= -1.;
 							color = vec3(0.25, 0.25, 0.25);//vec3(reflection.xz, 0.0) * 0.005 + vec3(0.5, 0.5, 0.0);
-							color = texture(groundMap, reflection.xz / 7. + vec2(0.5, 0.5)).rgb;
+							vec2 centeredUV = reflection.xz / 10.0;
+							color = texture(groundMap, centeredUV + vec2(0.5, 0.5)).rgb;
+
+							float lodT = (1.-smoothstep(0.0, 0.3, abs(centeredUV.x))) * 
+										(1.-smoothstep(0.0, 0.3, abs(centeredUV.y)));
+
+							color = mix(texture(groundMapHigh, centeredUV + vec2(0.5, 0.5)).rgb,color, 1.-lodT);
+
+							float minStep = 0.35;
+							float maxStep = 0.5;
+							float mask = (1.-smoothstep(minStep, maxStep, abs(centeredUV.x))) * 
+										(1.-smoothstep(minStep, maxStep, abs(centeredUV.y)));
+							color = mix(color, vec3(0.5, 0.55, 0.75), 1.-mask);
 						}
 						else
 							color = vec3(0.5, 0.55, 0.75);//uvc * 2. + vec3(0.5, 0.5, 0.0);
@@ -294,26 +303,6 @@ function loadAssets(scene) {
 			console.error('Error loading EXR texture:', error);
 		}
 	);
-	// assets.skyboxTexture = new HDRLoader()
-	// //.setDataType(THREE.UnsignedByteType)
-	// //.setPath('textures/equirectangular/')
-	// .load('./textures/skybox.hdr', function () {
-	// 	// let pmremGenerator = new THREE.PMREMGenerator(renderer);
-	// 	// let hdrCubeRenderTarget;
-	// 	// //hdrEquirect.encoding = 3000;
-	// 	// if (!isWebGL2) {
-	// 	// 	hdrCubeRenderTarget = pmremGenerator.fromEquirectangular(hdrEquirect);
-	// 	// 	hdrEquirect.dispose();
-	// 	// }
-	// 	// let backgroundRenderTarget = pmremGenerator.fromEquirectangular(backgroundTexture);
-	// 	// pmremGenerator.dispose();
-
-	// 	// //scene.background = backgroundRenderTarget.texture;
-	// 	// if (!isWebGL2) {
-	// 	// 	scene.environment = hdrCubeRenderTarget.texture;
-	// 	// }
-	// 	// scene.background = hdrCubeRenderTarget.texture;
-	// });
 }
 
 onMounted(() => {

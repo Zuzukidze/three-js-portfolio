@@ -11,6 +11,11 @@ export const apartmentAssetManifest: AssetManifest = {
             '/textures/background/ground.jpg', 
             true
         ),
+    'groundReflectionMap': 
+        assetDefTexture(
+            '/textures/background/ground_reflection.jpg', 
+            true
+        ),
     'buildingModel': 
         assetDefGLTF(
             '/models/apartment/building.glb', 
