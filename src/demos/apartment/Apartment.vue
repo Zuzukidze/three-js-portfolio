@@ -129,10 +129,22 @@ const initThreeJS = async () => {
 
 	// Scene background
 	const backgroundTexture = await assetManager.load(assets.skyboxTexture);
-	backgroundTexture.mapping = THREE.EquirectangularReflectionMapping;
-	scene.background = backgroundTexture;
-	scene.environment = backgroundTexture;
-	scene.backgroundBlurriness = 0.75;
+		backgroundTexture.mapping = THREE.EquirectangularReflectionMapping;
+		scene.background = backgroundTexture;
+		scene.environment = backgroundTexture;
+		scene.backgroundBlurriness = 0.75;
+
+	const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
+		type: backgroundTexture.type,
+		format: backgroundTexture.format,
+		colorSpace: backgroundTexture.colorSpace,
+		generateMipmaps: true,
+		minFilter: THREE.LinearMipmapLinearFilter,
+		magFilter: THREE.LinearFilter,
+	});
+
+	cubeRenderTarget.fromEquirectangularTexture(renderer, backgroundTexture);
+	glassMaterial.uniforms.skyboxTexture.value = cubeRenderTarget.texture;
 
 	// Handle window resize
 	const handleResize = () => {
@@ -188,24 +200,31 @@ const glassMaterial = new THREE.ShaderMaterial({
 				type: 't',
 				value: null,
 			},
+			skyboxTexture: {
+				value: null,
+			},
 		},
 		vertexShader: `
 			varying vec3 vPos;
 			varying vec3 vNormal;
+			varying vec2 vUv;
 			void main() {
 				vNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
 				vPos = (modelMatrix * vec4(position, 1.0)).xyz;
-				gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+				vUv = uv;
+				gl_Position = projectionMatrix * modelViewMatrix * vec4( position-normal*0., 1.0 );
 			}`,
 		fragmentShader: `
 		
 			varying vec3 vPos;
 			varying vec3 vNormal;
+			varying vec2 vUv;
 
 			vec3 invLightDir = vec3(0.585, 0.728, 0.385);
 			float groundSize = 75.0;
 			uniform sampler2D groundMap;
 			uniform sampler2D groundMapHigh;
+			uniform samplerCube skyboxTexture;
 
 
 			void main() {
@@ -227,6 +246,7 @@ const glassMaterial = new THREE.ShaderMaterial({
 				{
 
 					reflection = reflect(rayDir, normalize(normal));
+					vec3 reflectionColor = textureCube(skyboxTexture, reflection).rgb;
 
 
 					// probably smoothstep here will be better to make horizon edge in reflections smoother
@@ -252,22 +272,26 @@ const glassMaterial = new THREE.ShaderMaterial({
 							float maxStep = 0.5;
 							float mask = (1.-smoothstep(minStep, maxStep, abs(centeredUV.x))) * 
 										(1.-smoothstep(minStep, maxStep, abs(centeredUV.y)));
-							color = mix(color, vec3(0.5, 0.55, 0.75), 1.-mask);
+							color = mix(color, reflectionColor, 1.-mask);
 						}
 						else
-							color = vec3(0.5, 0.55, 0.75);//uvc * 2. + vec3(0.5, 0.5, 0.0);
+							color = reflectionColor;//vec3(0.5, 0.55, 0.75);//uvc * 2. + vec3(0.5, 0.5, 0.0);
 					}
 					else
 					{
-						color = vec3(0.5, 0.55, 0.75);
+						color = reflectionColor;
 					}
-
+					float maskEdge = (1.-smoothstep(0.35, 0.5, abs(vUv.x-0.5))) * 
+										(1.-smoothstep(0.4, 0.5, abs(vUv.y-0.5)));
+					color = mix(color, vec3(0.25, 0.25, 0.25), 1.-maskEdge);
 
 				}
 
-				//color *= vec3(0.7, 0.85, 0.99);
+				//color *= vec3(0.7, 0.5, 0.99);
 
-				gl_FragColor = vec4( color, 1.);
+				gl_FragColor = vec4( color*0.5, 1.);
+				#include <tonemapping_fragment>
+				#include <colorspace_fragment>
 			}
 		`
 	});
