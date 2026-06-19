@@ -47,7 +47,7 @@ const initThreeJS = async () => {
 	const geometry = new THREE.BoxGeometry(1, 1, 1);
 	const material = new THREE.MeshPhongMaterial({ color: 0x00ff88 });
 	const cube = new THREE.Mesh(geometry, material);
-	scene.add(cube);
+	//scene.add(cube);
 
 	const planeGeometry = new THREE.PlaneGeometry(100, 100);
 	const planeMaterial = new THREE.MeshBasicMaterial({ color: 0xdddddd /*color: 0x404040, roughness: 0.8*/ });
@@ -176,8 +176,19 @@ const initThreeJS = async () => {
 	// Cleanup function
 	return () => {
 		window.removeEventListener('resize', handleResize);
-		cancelAnimationFrame(animationId);
+	renderer.setAnimationLoop(null);
+		scene.traverse((object) => {
+			if (object.geometry) object.geometry.dispose();
+			if (object.material) {
+				if (Array.isArray(object.material)) {
+					object.material.forEach((material) => material.dispose());
+				} else {
+					object.material.dispose();
+				}
+			}
+		});
 		renderer.dispose();
+		scene.dispose();
 	};
 };
 var assets = {
@@ -185,8 +196,8 @@ var assets = {
 };
 
 
-assetManager.load(apartmentAssetManifest.groundReflectionMap).then((groundReflectionMapTexture) => {
-	glassMaterial.uniforms.groundMap.value = groundReflectionMapTexture;
+assetManager.load(apartmentAssetManifest.floorMap).then((floorMapTexture) => {
+	glassMaterial.uniforms.floorMap.value = floorMapTexture;
 })
 assetManager.load(apartmentAssetManifest.groundMap).then((groundMapTexture) => {
 	glassMaterial.uniforms.groundMapHigh.value = groundMapTexture;
@@ -195,7 +206,7 @@ assetManager.load(apartmentAssetManifest.groundMap).then((groundMapTexture) => {
 
 const glassMaterial = new THREE.ShaderMaterial({
 		uniforms: {
-			groundMap: {
+			floorMap: {
 				type: 't',
 				value: null,
 			},
@@ -225,8 +236,8 @@ const glassMaterial = new THREE.ShaderMaterial({
 
 			vec3 invLightDir = vec3(0.585, 0.728, 0.385);
 			float groundSize = 75.0;
-			uniform sampler2D groundMap;
 			uniform sampler2D groundMapHigh;
+			uniform sampler2D floorMap;
 			uniform samplerCube skyboxTexture;
 
 
@@ -249,27 +260,33 @@ const glassMaterial = new THREE.ShaderMaterial({
 				{
 
 					reflection = reflect(rayDir, normalize(normal));
+					vec3 originalReflection = reflection;
 					vec3 reflectionColor = textureCube(skyboxTexture, reflection).rgb;
 
 
-					// probably smoothstep here will be better to make horizon edge in reflections smoother
-					float distance = -(pos.y) / reflection.y;
-					uv = (reflection.xz * distance + pos.xz) / 10.0;
-					vec3 uvc = vec3(uv, 0.0);
 				
 					if (reflection.y < 0.)
 					{
+						float distance = -(pos.y) / reflection.y;
+						uv = (reflection.xz * distance + pos.xz) / 10.0;
+						vec3 uvc = vec3(uv, 0.0);
+
 						reflection = reflection * distance + pos;
 						if (abs(reflection.x) < 5.0 && abs(reflection.z) < 5.0){
 							reflection.z *= -1.;
 							color = vec3(0.25, 0.25, 0.25);//vec3(reflection.xz, 0.0) * 0.005 + vec3(0.5, 0.5, 0.0);
 							vec2 centeredUV = reflection.xz / 10.0;
-							color = texture(groundMap, centeredUV + vec2(0.5, 0.5)).rgb;
+							//color = texture(groundMap, centeredUV + vec2(0.5, 0.5)).rgb;
 
 							float lodT = (1.-smoothstep(0.0, 0.3, abs(centeredUV.x))) * 
 										(1.-smoothstep(0.0, 0.3, abs(centeredUV.y)));
+							lodT = 1.-lodT;
+							lodT *= 7.;
+							lodT -= 4.;
+							lodT = clamp(lodT, 0., 3.);
 
-							color = mix(texture(groundMapHigh, centeredUV + vec2(0.5, 0.5)).rgb,color, 1.-lodT);
+							color = textureLod(groundMapHigh, centeredUV + vec2(0.5, 0.5), lodT).rgb;
+							//color = mix(texture(groundMapHigh, centeredUV + vec2(0.5, 0.5)).rgb,color, 1.-lodT);
 
 							float minStep = 0.35;
 							float maxStep = 0.5;
@@ -279,20 +296,41 @@ const glassMaterial = new THREE.ShaderMaterial({
 						}
 						else
 							color = reflectionColor;//vec3(0.5, 0.55, 0.75);//uvc * 2. + vec3(0.5, 0.5, 0.0);
+						
+						reflection = originalReflection;
+						if (pos.y > .5) {
+							pos.y -= 0.5;
+
+							float floorNumber = floor(pos.y / 0.3);
+							pos.y -= floorNumber * 0.3;
+
+							float distance = -(pos.y) / reflection.y;
+							uv = (reflection.xz * distance + pos.xz) / 100.0;
+							reflection = reflection * distance + pos;
+
+							vec2 centeredUV = reflection.xz / 3.0;
+							
+							vec2 recenteredUV = centeredUV + vec2(0.5, 0.5);
+							recenteredUV.y = 1.0 - recenteredUV.y;
+							
+							vec4 floorColor = texture(floorMap, recenteredUV);
+							floorColor.a *= step(0.01, recenteredUV.x) * step(recenteredUV.x, 0.99) 
+								* step(0.01, recenteredUV.y) * step(recenteredUV.y, 0.99);
+
+							color = mix(color, floorColor.rgb, floorColor.a);
+						}
 					}
 					else
 					{
 						color = reflectionColor;
 					}
+				}
 					float maskEdge = (1.-smoothstep(0.35, 0.5, abs(vUv.x-0.5))) * 
 										(1.-smoothstep(0.4, 0.5, abs(vUv.y-0.5)));
 					color = mix(color, vec3(0.25, 0.25, 0.25), 1.-maskEdge);
 
-				}
 
-				//color *= vec3(0.7, 0.5, 0.99);
-
-				gl_FragColor = vec4( color*0.5, 1.);
+				gl_FragColor = vec4( color*0.35, 1.);
 				#include <tonemapping_fragment>
 				#include <colorspace_fragment>
 			}

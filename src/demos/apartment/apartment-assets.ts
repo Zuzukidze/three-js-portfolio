@@ -11,9 +11,9 @@ export const apartmentAssetManifest: AssetManifest = {
             '/textures/background/ground.jpg', 
             true
         ),
-    'groundReflectionMap': 
+    'floorMap': 
         assetDefTexture(
-            '/textures/background/ground_reflection.jpg', 
+            '/textures/background/floor_reflection.png', 
             true
         ),
     'buildingModel': 
