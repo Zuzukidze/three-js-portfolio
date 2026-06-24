@@ -84,18 +84,24 @@ export class AssetManager {
     ): Promise<T> {
         switch (asset.type) {
             case 'texture':
-                return await this.textureLoader.loadAsync(asset.url) as T;
+                return await this.textureLoader.loadAsync(this.getUrl(asset.url)) as T;
 
             case 'exr':
-                return await this.exrLoader.loadAsync(asset.url) as T;
+                return await this.exrLoader.loadAsync(this.getUrl(asset.url)) as T;
 
             case 'gltf':
-                return await this.gltfLoader.loadAsync(asset.url) as T;
+                return await this.gltfLoader.loadAsync(this.getUrl(asset.url)) as T;
 
             default:
                 throw new Error(
                     `Unknown asset type: ${asset.type}`
                 );
         }
+    }
+    private getUrl(baseUrl: string){
+        return new URL(
+            baseUrl,
+            import.meta.url
+        ).href;
     }
 }
